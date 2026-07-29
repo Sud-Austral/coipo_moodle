@@ -500,6 +500,7 @@ funcionarios.
 | El login falla con HTTPS | `MOODLE_SSLPROXY` mal puesto: `true` solo cuando Nginx sirva TLS |
 | `Can not find user` al resetear la contraseña | El usuario no tiene `auth='manual'`. Ver F3 |
 | `dbtransfer` aborta al empezar | `check_database_schema.php` no está limpio, o la base destino no está vacía |
+| Todas las páginas responden "The site is undergoing maintenance", y el contenedor queda `unhealthy` | Quedó un `climaintenance.html` de un `maintenance.php --enable` que falló después de escribirlo (por ejemplo, porque el contenedor apuntaba a una base vacía) y cuyo `--disable` tampoco pudo correr. El modo mantención por CLI es **solo ese archivo**, sin estado en la base: `rm -f /opt/moodledata/coipo_moodle/climaintenance.html`. El campo `mantencion` de `/health` lo delata |
 | `Table ... is read only` en MariaDB | Añadir `--innodb_read_only_compressed=OFF` al `command:` del compose |
 
 ### Sin salida a internet en el servidor

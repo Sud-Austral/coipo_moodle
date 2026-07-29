@@ -97,9 +97,19 @@ if ($estado['db'] !== 'ok') {
     $problemas[] = 'sin conexion a la base de datos';
 }
 
-// Informativo, no afecta el veredicto: si el sitio responde raro, comparar esto
-// con la URL del navegador suele explicarlo de inmediato.
+// ─── Informativos: no afectan el veredicto, pero explican casi todos los
+//     "el sitio responde raro" sin tener que entrar a buscar ───────────────────
+
+// Comparar con la URL del navegador: si no coinciden, ahí está el problema.
 $estado['wwwroot'] = env_val('MOODLE_WWWROOT', '(sin definir)');
+
+// El modo mantención por CLI es solo este archivo, sin estado en la base. Si
+// quedó de un upgrade interrumpido, Moodle responde una página de mantención a
+// TODAS las peticiones y parece que la aplicación está caída. Ya pasó una vez:
+// maintenance.php --enable escribió el archivo y falló después al leer la base,
+// así que el --disable nunca lo borró. Se desactiva con:
+//   rm -f /opt/moodledata/coipo_moodle/climaintenance.html
+$estado['mantencion'] = file_exists(DATAROOT . '/climaintenance.html');
 
 if ($problemas) {
     $estado['status']  = 'error';

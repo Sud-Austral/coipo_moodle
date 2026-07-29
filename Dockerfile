@@ -49,7 +49,11 @@ RUN set -eux; \
 # Se descarga la versión oficial en el build: el repositorio queda liviano y la
 # imagen es reproducible. El tag v4.5.10 fue verificado contra la API de GitHub.
 # Si el servidor no tuviera salida a internet, ver docs/MIGRACION.md.
+# El `cd /` no es decorativo: la imagen php:8.3-apache trae WORKDIR /var/www/html,
+# así que sin él el shell está parado dentro de la carpeta que borra el rm y git
+# aborta con "Unable to read current working directory".
 RUN set -eux; \
+    cd /; \
     rm -rf /var/www/html; \
     git clone --depth 1 --branch "${MOODLE_VERSION}" \
         https://github.com/moodle/moodle.git /var/www/html; \

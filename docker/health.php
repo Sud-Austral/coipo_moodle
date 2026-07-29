@@ -1,77 +1,110 @@
 <?php
 /**
- * Endpoint de salud para el smoke test del despliegue CONAF.
+ * Endpoint de salud para el healthcheck del contenedor y el smoke test del
+ * despliegue CONAF. Moodle no trae uno propio.
  *
- * Moodle no trae uno propio, y el workflow de infra-docker-base espera un
- * GET /health que responda 200: sin esto el despliegue se marca como fallido
- * aunque el sitio esté perfectamente bien.
+ * NO carga config.php ni el arranque de Moodle, y eso es deliberado.
  *
- * No arranca Moodle entero. ABORT_AFTER_CONFIG hace que lib/setup.php cargue
- * $CFG y se detenga ahí, sin conectar a la base ni levantar sesiones — así el
- * chequeo es barato y no ensucia nada. La conexión se prueba aparte, a mano.
+ * La primera versión sí lo hacía, y se rompió en producción de una forma
+ * engañosa: el healthcheck pide http://localhost/health, o sea con
+ * `Host: localhost`, mientras el sitio tenía wwwroot=http://academia.conaf.cl
+ * y reverseproxy activo. Moodle detecta esa discrepancia durante su arranque y
+ * responde una página HTML de error — antes de que este archivo ejecute una sola
+ * línea. Resultado: el contenedor quedaba "unhealthy" y el despliegue culpaba a
+ * la base de datos, que estaba perfectamente bien.
+ *
+ * Un chequeo de salud tiene que poder responder cuando la configuración del
+ * sitio es justamente lo que falla. Por eso lee las mismas variables de entorno
+ * que docker/config.php, pero por su cuenta.
  */
-
-define('ABORT_AFTER_CONFIG', true);
-define('NO_MOODLE_COOKIES', true);
-define('NO_UPGRADE_CHECK', true);
-
-require(__DIR__ . '/config.php');
 
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
-$estado = array('status' => 'ok');
+// Coincide con $CFG->dataroot de docker/config.php y con el punto de montaje que
+// crea el Dockerfile. Es el bind mount a /opt/moodledata/coipo_moodle del host.
+const DATAROOT = '/var/moodledata';
+
+function env_val(string $clave, string $defecto = ''): string {
+    $v = getenv($clave);
+    if ($v === false || $v === '') {
+        $v = isset($_SERVER[$clave]) ? $_SERVER[$clave] : '';
+    }
+    return $v === '' ? $defecto : (string)$v;
+}
+
+$estado    = array('status' => 'ok');
 $problemas = array();
 
-// 1. moodledata: montado y escribible por el usuario del contenedor.
-if (!is_dir($CFG->dataroot)) {
-    $problemas[] = 'dataroot no existe';
-} else if (!is_writable($CFG->dataroot)) {
-    $problemas[] = 'dataroot no escribible (revisar chown 33:33 en el host)';
+// ─── 1. moodledata montado y escribible por el usuario del contenedor ───────
+if (!is_dir(DATAROOT)) {
+    $problemas[] = 'dataroot no existe: el bind mount no está montado';
+} else if (!is_writable(DATAROOT)) {
+    $problemas[] = 'dataroot no escribible: revisar chown 33:33 en el host';
 }
-$estado['dataroot'] = empty($problemas) ? 'ok' : 'error';
+$estado['dataroot'] = $problemas ? 'error' : 'ok';
 
-// 2. Base de datos: una conexión y una consulta trivial, con timeout corto.
-//    Nunca se devuelve el detalle del error al cliente: expondría credenciales
-//    o la topología interna. El detalle va al log del contenedor.
-$estado['db'] = 'error';
+// ─── 2. Base de datos: conectar y una consulta trivial, con timeout corto ───
+$tipo    = env_val('MOODLE_DBTYPE', 'pgsql');
+$host    = env_val('DATABASE_HOST');
+$nombre  = env_val('DATABASE_NAME');
+$usuario = env_val('DATABASE_USER');
+$clave   = env_val('DATABASE_PASSWORD');
+$puerto  = (int) env_val('DATABASE_PORT', $tipo === 'pgsql' ? '5432' : '3306');
+
+$estado['db']   = 'error';
+$estado['motor'] = $tipo;
+$detalle = '';
+
 try {
-    if ($CFG->dbtype === 'pgsql') {
-        $puerto = empty($CFG->dboptions['dbport']) ? 5432 : (int)$CFG->dboptions['dbport'];
+    if ($tipo === 'pgsql') {
+        // PGGSSENCMODE y PGSSLMODE los toma libpq del entorno: el PostgreSQL de
+        // CONAF rechaza la negociación GSSAPI.
         $cadena = sprintf(
-            "host=%s port=%d dbname=%s user=%s password=%s connect_timeout=3",
-            $CFG->dbhost, $puerto, $CFG->dbname, $CFG->dbuser, $CFG->dbpass
+            'host=%s port=%d dbname=%s user=%s password=%s connect_timeout=3',
+            $host, $puerto, $nombre, $usuario, $clave
         );
-        $conexion = @pg_connect($cadena);
-        if ($conexion && @pg_query($conexion, 'SELECT 1')) {
-            $estado['db'] = 'ok';
-        }
-        if ($conexion) {
-            pg_close($conexion);
-        }
-    } else {
-        $puerto = empty($CFG->dboptions['dbport']) ? 3306 : (int)$CFG->dboptions['dbport'];
-        $mysqli = @mysqli_init();
-        @mysqli_options($mysqli, MYSQLI_OPT_CONNECT_TIMEOUT, 3);
-        if (@mysqli_real_connect($mysqli, $CFG->dbhost, $CFG->dbuser, $CFG->dbpass, $CFG->dbname, $puerto)) {
-            if (@mysqli_query($mysqli, 'SELECT 1')) {
+        $con = @pg_connect($cadena);
+        if ($con) {
+            if (@pg_query($con, 'SELECT 1')) {
                 $estado['db'] = 'ok';
             }
-            @mysqli_close($mysqli);
+            @pg_close($con);
+        }
+    } else {
+        $my = @mysqli_init();
+        if ($my) {
+            @mysqli_options($my, MYSQLI_OPT_CONNECT_TIMEOUT, 3);
+            if (@mysqli_real_connect($my, $host, $usuario, $clave, $nombre, $puerto)) {
+                if (@mysqli_query($my, 'SELECT 1')) {
+                    $estado['db'] = 'ok';
+                }
+                @mysqli_close($my);
+            }
         }
     }
 } catch (Throwable $e) {
-    error_log('health: fallo de conexion a la base: ' . $e->getMessage());
+    $detalle = $e->getMessage();
 }
 
 if ($estado['db'] !== 'ok') {
+    // El detalle va al log del contenedor, nunca a la respuesta: llevaría la
+    // topología interna y podría arrastrar credenciales.
+    error_log(sprintf(
+        'health: sin conexión a la base %s://%s:%d/%s%s',
+        $tipo, $host, $puerto, $nombre, $detalle !== '' ? ' — ' . $detalle : ''
+    ));
     $problemas[] = 'sin conexion a la base de datos';
 }
 
+// Informativo, no afecta el veredicto: si el sitio responde raro, comparar esto
+// con la URL del navegador suele explicarlo de inmediato.
+$estado['wwwroot'] = env_val('MOODLE_WWWROOT', '(sin definir)');
+
 if ($problemas) {
-    $estado['status'] = 'error';
+    $estado['status']  = 'error';
     $estado['detalle'] = $problemas;
     http_response_code(503);
 }
 
-echo json_encode($estado);
+echo json_encode($estado), "\n";

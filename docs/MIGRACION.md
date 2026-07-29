@@ -70,14 +70,28 @@ disco", lo cual es inofensivo.
 
 ## Preparación
 
+El `.env.migracion` va **en `/opt/migracion/coipo_moodle/`, no en el directorio de deploy**.
+Verificado a la fuerza: el `rsync` del despliegue excluye `.env` pero **borra cualquier otro
+archivo que no esté en el repositorio**, así que un `.env.migracion` dentro de
+`/opt/apps/coipo_moodle/` desaparece en el siguiente deploy —y con él la clave del MariaDB
+temporal— en mitad de la migración.
+
 ```bash
 ssh usuario@172.31.2.41
 cd /opt/apps/coipo_moodle
 
-cp .env.migracion.example .env.migracion
-chmod 600 .env.migracion
-openssl rand -hex 32               # usar el resultado en MARIADB_ROOT_PASSWORD y DATABASE_PASSWORD
-nano .env.migracion
+PW=$(openssl rand -hex 32)
+sed -e "s|^MARIADB_ROOT_PASSWORD=.*|MARIADB_ROOT_PASSWORD=$PW|" \
+    -e "s|^DATABASE_PASSWORD=.*|DATABASE_PASSWORD=$PW|" \
+    .env.migracion.example > /opt/migracion/coipo_moodle/.env.migracion
+chmod 600 /opt/migracion/coipo_moodle/.env.migracion
+```
+
+Si el archivo se perdiera con el contenedor de MariaDB aún en pie, la clave se recupera de su
+propio entorno sin tener que recargar el volcado:
+
+```bash
+docker exec coipo_moodle-mariadb-tmp-1 printenv MARIADB_ROOT_PASSWORD
 ```
 
 Para acortar los comandos del resto del documento se usa una **variable**, no un alias: los
@@ -85,7 +99,7 @@ alias no existen en una shell nueva, así que se pierden al entrar a `screen` o 
 comando falla con `command not found` justo cuando creías haberlo lanzado.
 
 ```bash
-DCM="docker compose -f docker-compose.yml -f docker-compose.migracion.yml --env-file .env.migracion"
+DCM="docker compose -f docker-compose.yml -f docker-compose.migracion.yml --env-file /opt/migracion/coipo_moodle/.env.migracion"
 ```
 
 > **Qué hace y qué no hace `--env-file`.** Solo alimenta la interpolación de `${...}` dentro
@@ -476,7 +490,7 @@ psql -h 172.31.2.40 -U academia -d academia_prod -c \
 ## Limpieza (solo cuando el sitio lleve días funcionando)
 
 ```bash
-docker compose -f docker-compose.yml -f docker-compose.migracion.yml --env-file .env.migracion down -v
+docker compose -f docker-compose.yml -f docker-compose.migracion.yml --env-file /opt/migracion/coipo_moodle/.env.migracion down -v
 rm -f .env.migracion
 shred -u /opt/migracion/coipo_moodle/bitnami_moodle.sql
 shred -u /opt/migracion/coipo_moodle/respaldo-antes-upgrade.sql.gz

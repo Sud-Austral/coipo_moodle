@@ -7,7 +7,7 @@
 #
 # Uso (ver docs/MIGRACION.md):
 #   docker compose -f docker-compose.yml -f docker-compose.migracion.yml \
-#                  --env-file .env.migracion up -d --build
+#                  --env-file /opt/migracion/coipo_moodle/.env.migracion up -d --build
 
 services:
   mariadb-tmp:

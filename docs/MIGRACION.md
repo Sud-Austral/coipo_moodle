@@ -80,19 +80,29 @@ openssl rand -hex 32               # usar el resultado en MARIADB_ROOT_PASSWORD 
 nano .env.migracion
 ```
 
-Para acortar los comandos del resto del documento:
+Para acortar los comandos del resto del documento se usa una **variable**, no un alias: los
+alias no existen en una shell nueva, así que se pierden al entrar a `screen` o `tmux` y el
+comando falla con `command not found` justo cuando creías haberlo lanzado.
 
 ```bash
-alias dcm='docker compose -f docker-compose.yml -f docker-compose.migracion.yml --env-file .env.migracion'
-set -a; . ./.env.migracion; set +a    # deja las variables disponibles en tu shell
+DCM="docker compose -f docker-compose.yml -f docker-compose.migracion.yml --env-file .env.migracion"
 ```
+
+> **Qué hace y qué no hace `--env-file`.** Solo alimenta la interpolación de `${...}` dentro
+> de los archivos compose. **No reemplaza la directiva `env_file:` de un servicio.** El
+> compose base define `env_file: .env` (PostgreSQL), así que sin más nada el contenedor
+> seguiría hablando con PostgreSQL durante toda la conversión. Por eso
+> `docker-compose.migracion.yml` fija las variables de MariaDB en `environment:`, que **sí**
+> tiene prioridad sobre `env_file:`. El síntoma cuando esto falta es engañoso: `/health`
+> responde `db: ok` (la conexión a PostgreSQL funciona) pero Moodle falla con *"Config table
+> does not contain the version"*, porque esa base está vacía.
 
 ---
 
 ## F1 — Construir la imagen
 
 ```bash
-dcm build
+$DCM build
 ```
 
 El build descarga Moodle 4.5.10 desde GitHub (el tag `v4.5.10` está verificado) y el binario
@@ -103,13 +113,13 @@ internet" al final.
 ### Verificar (no basta con que el build termine)
 
 ```bash
-dcm run --rm app php -v                       # PHP 8.3.x
-dcm run --rm app php -m | grep -E '^(pgsql|mysqli|gd|intl|zip|soap|exif)$'
-dcm run --rm app head -3 /var/www/html/version.php
+$DCM run --rm app php -v                       # PHP 8.3.x
+$DCM run --rm app php -m | grep -E '^(pgsql|mysqli|gd|intl|zip|soap|exif)$'
+$DCM run --rm app head -3 /var/www/html/version.php
 
 # Los cuatro plugins no-core deben estar en su sitio
-dcm run --rm app ls /var/www/html/mod/customcert/element | wc -l    # 19
-dcm run --rm app ls -d /var/www/html/admin/tool/mergeusers \
+$DCM run --rm app ls /var/www/html/mod/customcert/element | wc -l    # 19
+$DCM run --rm app ls -d /var/www/html/admin/tool/mergeusers \
                        /var/www/html/blocks/configurable_reports \
                        /var/www/html/theme/boost_magnific
 ```
@@ -122,8 +132,8 @@ para leer MariaDB. Si falta alguna, el resto del procedimiento no funciona.
 ## F2 — MariaDB temporal y carga del volcado
 
 ```bash
-dcm up -d mariadb-tmp
-dcm ps                              # esperar hasta que aparezca "healthy"
+$DCM up -d mariadb-tmp
+$DCM ps                              # esperar hasta que aparezca "healthy"
 ```
 
 Confirmar que la base se creó en utf8mb4. Importa: la base original era **utf8mb3** (lo dice
@@ -131,7 +141,7 @@ el `db.opt` de la copia del datadir) aunque sus tablas sean utf8mb4. Si se hered
 las tablas nuevas que cree el upgrade 4.4→4.5 nacen con la codificación equivocada:
 
 ```bash
-dcm exec mariadb-tmp mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -e \
+$DCM exec mariadb-tmp mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -e \
   "SELECT default_character_set_name, default_collation_name FROM information_schema.SCHEMATA
    WHERE schema_name='bitnami_moodle';"
 # Debe decir utf8mb4 / utf8mb4_unicode_ci. Si no:
@@ -142,21 +152,21 @@ Cargar los 295 MB. El archivo ya está montado en `/dump`, así que la carga ocu
 lado del servidor, sin pasar por la tubería del cliente Docker:
 
 ```bash
-time dcm exec -T mariadb-tmp sh -c \
+time $DCM exec -T mariadb-tmp sh -c \
   'exec mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" --default-character-set=utf8mb4 bitnami_moodle < /dump/bitnami_moodle.sql'
 ```
 
 No muestra progreso. Para seguirlo desde otra terminal:
 
 ```bash
-dcm exec mariadb-tmp mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -e \
+$DCM exec mariadb-tmp mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" -e \
   "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='bitnami_moodle';"
 ```
 
 ### Verificar la carga
 
 ```bash
-dcm exec mariadb-tmp mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" bitnami_moodle -e "
+$DCM exec mariadb-tmp mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" bitnami_moodle -e "
   SELECT (SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='bitnami_moodle') AS tablas,
          (SELECT COUNT(*) FROM mdl_user WHERE deleted=0) AS usuarios,
          (SELECT COUNT(*) FROM mdl_course) AS cursos,
@@ -202,25 +212,43 @@ qué, quién calificó qué— y en un servicio público se conserva.
 ### Respaldo primero — el upgrade no se deshace
 
 ```bash
-dcm exec -T mariadb-tmp sh -c \
+$DCM exec -T mariadb-tmp sh -c \
   'exec mariadb-dump -uroot -p"$MARIADB_ROOT_PASSWORD" --single-transaction --routines --no-tablespaces bitnami_moodle' \
   | gzip > /opt/migracion/coipo_moodle/respaldo-antes-upgrade.sql.gz
 ls -lh /opt/migracion/coipo_moodle/respaldo-antes-upgrade.sql.gz
 ```
 
+### Apuntar el contenedor a MariaDB — y comprobarlo antes de tocar la base
+
+```bash
+$DCM up -d --force-recreate app
+sleep 15
+
+# Verificación imprescindible: el contenedor debe traer las variables de MariaDB.
+$DCM exec app env | grep -E '^(MOODLE_DBTYPE|DATABASE_HOST|DATABASE_NAME|DATABASE_USER)='
+# Esperado: mariadb / mariadb-tmp / bitnami_moodle / root
+# Si dice pgsql y 172.31.2.40, NO CONTINUAR: ver la nota sobre --env-file arriba.
+
+# Confirmación definitiva: esta versión se lee de la base, no de un archivo.
+$DCM exec -u www-data app php admin/cli/cfg.php --name=release
+# Esperado: 4.4.2 (Build: 20240812)
+```
+
+El `--force-recreate` es necesario: si el contenedor ya existe, Compose lo deja como está
+(dice `Running` en vez de `Recreated`) y seguirías con la configuración anterior.
+
 ### Actualizar
 
 ```bash
-dcm up -d app
 
 # Todo con -u www-data. Si se corre como root, los directorios de caché que
 # Moodle crea en moodledata quedan con dueño root y el sitio deja de poder
 # escribir justo después de un upgrade exitoso. Es el error más común.
-dcm exec -u www-data app php admin/cli/maintenance.php --enable
-dcm exec -u www-data app php admin/cli/checks.php
-dcm exec -u www-data app php -d memory_limit=-1 -d max_execution_time=0 \
+$DCM exec -u www-data app php admin/cli/maintenance.php --enable
+$DCM exec -u www-data app php admin/cli/checks.php
+$DCM exec -u www-data app php -d memory_limit=-1 -d max_execution_time=0 \
     admin/cli/upgrade.php --non-interactive
-dcm exec -u www-data app php admin/cli/purge_caches.php
+$DCM exec -u www-data app php admin/cli/purge_caches.php
 ```
 
 Los 7 plugins ausentes del disco **no bloquean el upgrade**: Moodle los lista como "falta en
@@ -229,9 +257,9 @@ el disco" y sigue.
 ### Verificar — mirando el sitio, no los logs
 
 ```bash
-dcm exec -u www-data app php admin/cli/cfg.php --name=release        # 4.5.10 (Build: ...)
-dcm exec -u www-data app php admin/cli/check_database_schema.php     # sin diferencias
-dcm exec -u www-data app php admin/cli/maintenance.php --disable
+$DCM exec -u www-data app php admin/cli/cfg.php --name=release        # 4.5.10 (Build: ...)
+$DCM exec -u www-data app php admin/cli/check_database_schema.php     # sin diferencias
+$DCM exec -u www-data app php admin/cli/maintenance.php --disable
 curl -sI http://localhost:8115/login/index.php | head -1             # HTTP/1.1 200 OK
 ```
 
@@ -243,10 +271,10 @@ ejecuta `dbtransfer` antes de migrar. Si tiene diferencias, F4 no va a arrancar.
 El administrador principal del sitio es el usuario **id = 2** (según `siteadmins` en la base).
 
 ```bash
-dcm exec mariadb-tmp mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" bitnami_moodle \
+$DCM exec mariadb-tmp mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" bitnami_moodle \
   -e "SELECT id, username, auth, email FROM mdl_user WHERE id=2;"
 
-dcm exec -u www-data app php admin/cli/reset_password.php
+$DCM exec -u www-data app php admin/cli/reset_password.php
 ```
 
 **Trampa conocida**: `reset_password.php` solo encuentra usuarios con `auth='manual'`. Si
@@ -301,10 +329,10 @@ prefijo `mdl_`.
 ### 2. Pre-vuelo y transferencia
 
 ```bash
-dcm exec -u www-data app php admin/cli/check_database_schema.php    # DEBE salir limpio
-dcm exec -u www-data app php admin/cli/maintenance.php --enable
+$DCM exec -u www-data app php admin/cli/check_database_schema.php    # DEBE salir limpio
+$DCM exec -u www-data app php admin/cli/maintenance.php --enable
 
-dcm exec -u www-data app php -d memory_limit=-1 -d max_execution_time=0 \
+$DCM exec -u www-data app php -d memory_limit=-1 -d max_execution_time=0 \
   admin/tool/dbtransfer/cli/migrate.php \
     --dbtype=pgsql --dblibrary=native \
     --dbhost=172.31.2.40 --dbport=5432 \
@@ -337,7 +365,7 @@ cp .env.example .env
 chmod 600 .env
 nano .env            # DATABASE_PASSWORD real; MOODLE_WWWROOT = la URL definitiva
 
-dcm down                                   # apagar la fase de conversión
+$DCM down                                   # apagar la fase de conversión
 docker compose --env-file .env up -d --build
 docker compose --env-file .env exec -u www-data app php admin/cli/purge_caches.php
 ```
@@ -372,19 +400,47 @@ el cron intentará sincronizar contra los directorios reales de CONAF.
 
 ### Nginx del servidor
 
-```nginx
-location / {
-    proxy_pass http://127.0.0.1:8115;
-    proxy_set_header Host $host;          # Moodle compara esto contra wwwroot
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    client_max_body_size 200M;            # debe acompañar a upload_max_filesize
-}
+El vhost completo y comentado está en [`nginx-academia.conf`](nginx-academia.conf). Vive en el
+servidor, no lo despliega este repositorio:
+
+```bash
+# Convención de la casa: <dominio>.conf (como iam.conaf.cl.conf)
+cp docs/nginx-academia.conf /etc/nginx/sites-available/academia.conaf.cl.conf
+ln -sf /etc/nginx/sites-available/academia.conaf.cl.conf /etc/nginx/sites-enabled/
+nginx -t && systemctl reload nginx
 ```
 
-Con Nginx delante hay que poner `MOODLE_REVERSEPROXY=true`. Y cuando el certificado
-`*.conaf.cl` esté instalado y Nginx sirva HTTPS, además `MOODLE_SSLPROXY=true`. Antes no: las
-cookies seguras no viajan por HTTP y el login deja de funcionar.
+No lleva `default_server`: ya existe `00-default.conf` y solo puede haber uno por puerto —
+Nginx se negaría a arrancar.
+
+Verificar sin depender del DNS:
+
+```bash
+curl -s -H "Host: academia.conaf.cl" http://127.0.0.1/health; echo
+```
+
+#### El puerto 8115 no es accesible desde la red, y está bien así
+
+Verificado el 29-07-2026 desde una estación de trabajo: `172.31.2.41:8115` acepta la conexión
+TCP y luego la reinicia (`Connection was reset`). Hay un firewall de red que solo deja pasar
+los puertos estándar.
+
+Es el comportamiento buscado: `APP_PORT` es el puerto **interno** por el que Nginx habla con
+el contenedor, y la única puerta de entrada es Nginx en el 80. **Nunca poner `APP_PORT=80`**:
+el contenedor chocaría con Nginx y tumbaría también las otras apps del servidor.
+
+Consecuencia práctica: `MOODLE_WWWROOT` **no debe llevar puerto**. Con Nginx delante hay que
+poner `MOODLE_REVERSEPROXY=true`, y cuando el certificado `*.conaf.cl` esté instalado y Nginx
+sirva HTTPS, además `MOODLE_SSLPROXY=true`. Antes no: las cookies seguras no viajan por HTTP
+y el login deja de funcionar sin decir por qué.
+
+Para navegar la URL definitiva antes de que el DNS resuelva, sin tocar el archivo `hosts`:
+
+```powershell
+& "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" `
+  --user-data-dir="$env:TEMP\edge-test" `
+  --host-resolver-rules="MAP academia.conaf.cl 172.31.2.41" http://academia.conaf.cl
+```
 
 ### URLs antiguas dentro del contenido — paso obligatorio
 

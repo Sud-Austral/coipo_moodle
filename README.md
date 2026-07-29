@@ -1,2 +1,2 @@
-# coipo_moodle2
+# coipo_moodle
 

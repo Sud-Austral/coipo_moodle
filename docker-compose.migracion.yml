@@ -49,6 +49,19 @@ services:
     depends_on:
       mariadb-tmp:
         condition: service_healthy
+    # El compose base trae `env_file: .env`, que apunta a PostgreSQL, y la opción
+    # --env-file NO lo cambia: esa opción solo alimenta la interpolación de
+    # ${...} dentro del propio compose. Sin esto, el contenedor seguía hablando
+    # con PostgreSQL (vacío) y Moodle fallaba con "Config table does not contain
+    # the version". `environment:` tiene prioridad sobre `env_file:`, así que
+    # aquí es donde deben ir las variables de la fase de conversión.
+    environment:
+      MOODLE_DBTYPE: mariadb
+      DATABASE_HOST: mariadb-tmp
+      DATABASE_PORT: "3306"
+      DATABASE_NAME: ${DATABASE_NAME:-bitnami_moodle}
+      DATABASE_USER: root
+      DATABASE_PASSWORD: ${MARIADB_ROOT_PASSWORD:?falta MARIADB_ROOT_PASSWORD en .env.migracion}
 
   cron:
     # El cron NO debe correr durante la conversión: con código 4.5.10 sobre una

@@ -163,30 +163,37 @@ dcm exec mariadb-tmp mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" bitnami_moodle -e
          (SELECT value FROM mdl_config WHERE name='release') AS version;"
 ```
 
+Valores **verificados** en la carga real del 29 de julio de 2026:
+
 | Campo | Esperado |
 |---|---|
 | `tablas` | **492** |
-| `usuarios` | ~2.800 |
-| `cursos` | ~40 (incluye el curso "sitio", que no es un curso real) |
+| `usuarios` (`deleted=0`) | **2.798** |
+| `cursos` (filas de `mdl_course`) | **36** — 35 cursos más el curso "sitio", que no es un curso real |
+| `matriculas` | **3.474** |
+| `archivos` (filas de `mdl_files`) | **178.833** |
 | `version` | **4.4.2 (Build: 20240812)** |
 
 Si `tablas` es menor que 492, la carga se cortó: vaciar la base y recargar.
 
-### Quitar el ruido antes de seguir
+> **Cuidado con el `AUTO_INCREMENT` como estimación.** Inspeccionando el volcado, esos
+> contadores sugieren 465.494 filas en `mdl_files` y 11 millones en `mdl_task_log`. Son
+> falsos: el contador registra cuántas filas se crearon **alguna vez**, no cuántas quedan.
+> `mdl_task_log` llegó con **0 filas** porque Moodle purga ese historial a los 30 días.
 
-`mdl_task_log` tiene ~11 millones de filas: es el historial de ejecuciones de tareas
-programadas, que Moodle purga solo a los 30 días. No aporta nada y encarece todo lo que
-viene después — sobre todo F4, que copia fila por fila a través de PHP.
+### Ruido
+
+`mdl_task_log` es historial de ejecuciones de tareas programadas y no aporta nada a la
+migración. En este volcado ya venía vacío, pero si en un volcado futuro tuviera millones de
+filas conviene truncarla antes de F4, que copia fila por fila a través de PHP:
 
 ```bash
-dcm exec mariadb-tmp mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" bitnami_moodle \
-  -e "TRUNCATE TABLE mdl_task_log;"
+docker exec coipo_moodle-mariadb-tmp-1 sh -c \
+  'mariadb -uroot -p"$MARIADB_ROOT_PASSWORD" bitnami_moodle -e "TRUNCATE TABLE mdl_task_log;"'
 ```
 
-Esto reduce la migración a PostgreSQL de horas a decenas de minutos.
-
-**No hagas lo mismo con `mdl_logstore_standard_log`** (620 k filas): eso es traza de auditoría
-—quién vio qué, quién calificó qué— y en un servicio público se conserva.
+**No hagas lo mismo con `mdl_logstore_standard_log`**: eso es traza de auditoría —quién vio
+qué, quién calificó qué— y en un servicio público se conserva.
 
 ---
 

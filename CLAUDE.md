@@ -34,8 +34,8 @@ Todo lo de abajo fue comprobado leyendo los archivos, no supuesto. **El supuesto
 | Versión de la base | Moodle **4.4.2** (Build 20240812) |
 | Código fuente disponible | Moodle **4.5.10** (Build 20260216), branch 405 |
 | moodledata | **10,9 GB** en `C:\c\moodledata` · `filedir` 10,84 GB · 256 subcarpetas · 15.994 archivos |
-| Escala | ~**2.800 usuarios** · ~**40 cursos** · 3.558 matrículas · 465.494 filas en `mdl_files` |
-| Ruido | `mdl_task_log` tiene ~**11 millones** de filas de historial de tareas. Se trunca antes de migrar |
+| Escala (conteos reales, medidos tras cargar el volcado) | **2.798 usuarios** activos · **36 filas** en `mdl_course` (35 cursos + el curso "sitio") · **3.474 matrículas** · **178.833 filas** en `mdl_files` |
+| `mdl_task_log` | **0 filas.** Su `AUTO_INCREMENT` llega a 11 millones, pero Moodle ya purgó el historial en el origen — el contador solo dice cuántas filas existieron alguna vez |
 | Tema activo | `boost_magnific` (recuperado y vendorizado) |
 | Requisitos de Moodle 4.5 | PHP ≥ 8.1 y **bloquea 8.4** · PostgreSQL ≥ 13 · MariaDB ≥ 10.6.7 |
 

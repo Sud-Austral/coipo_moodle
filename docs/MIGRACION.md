@@ -346,13 +346,20 @@ prefijo `mdl_`.
 $DCM exec -u www-data app php admin/cli/check_database_schema.php    # DEBE salir limpio
 $DCM exec -u www-data app php admin/cli/maintenance.php --enable
 
+PGPW=$(grep '^DATABASE_PASSWORD=' /opt/apps/coipo_moodle/.env | cut -d= -f2-)
+
 $DCM exec -u www-data app php -d memory_limit=-1 -d max_execution_time=0 \
   admin/tool/dbtransfer/cli/migrate.php \
     --dbtype=pgsql --dblibrary=native \
     --dbhost=172.31.2.40 --dbport=5432 \
-    --dbname=academia_prod --dbuser=academia --dbpass='LA_CLAVE_REAL' \
-    --prefix=mdl_
+    --dbname=academia_prod --dbuser=academia --dbpass="$PGPW" \
+    --prefix=mdl_ --dbsocket=
 ```
+
+El `--dbsocket=` vacío al final **no es opcional**: `migrate.php` pide de forma interactiva
+cualquier parámetro que no reciba, y se queda esperando en `== Socket Unix ==`. Vacío es el
+valor correcto —conexión TCP a otra máquina, no por socket local—, pero hay que pasarlo
+explícitamente o el comando se cuelga a mitad del procedimiento.
 
 Copia fila por fila a través de PHP. Con `mdl_task_log` ya truncado son ~15–40 minutos; sin
 truncar, horas. **No se puede reanudar**: si falla a mitad hay que vaciar la base destino

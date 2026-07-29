@@ -164,23 +164,58 @@ prioridades.
 
 ## Estado y pendientes
 
-**Hecho**: inventario verificado, `Dockerfile`, `docker/`, los dos `docker-compose`,
-`.env.example`, `db/setup_bd.sql`, `.gitignore`, `.dockerignore`, `.gitattributes`,
-`plugins/mod/customcert/` y la documentación.
+### Hecho y verificado en el servidor (29 de julio de 2026)
 
-**Nada de esto se ha ejecutado**: no hay Docker ni PHP en el equipo de Luis, así que la imagen
-no se ha construido ni probado. La primera verificación real ocurre en el servidor.
+Las fases F0 a F5 están ejecutadas. Lo verificado **mirando el resultado**, no el código:
 
-Pendientes, por orden de importancia:
+| Fase | Evidencia |
+|---|---|
+| F0 · Traslado | 10,9 GB en `/opt/moodledata/coipo_moodle`, dueño UID 33; volcado de 296 MB en `/opt/migracion/coipo_moodle` |
+| F1 · Imagen | `coipo_moodle-app` y `-cron` construidas; las 20 extensiones PHP que exige Moodle 4.5 presentes |
+| F2 · Carga | 492 tablas, 2.798 usuarios, 36 filas en `mdl_course`, 3.474 matrículas, versión 4.4.2 |
+| F3 · Upgrade | `4.5.10 (Build: 20260216)` y `Database structure is ok.` |
+| F4 · PostgreSQL | **503 tablas** (las 11 nuevas del upgrade) y los cuatro conteos idénticos al origen |
+| F5 · Sitio | `academia.conaf.cl` responde 200 por Nginx; login, cursos, tema `boost_magnific`, imágenes y **PDF abriéndose** desde `moodledata` |
+| Deploy | Push a `main` reconstruye y redespliega solo |
 
-1. Confirmar que 172.31.2.41 tiene **salida a internet**: el build descarga Moodle desde
-   GitHub. Si no, ver la alternativa al final de `docs/MIGRACION.md`.
-2. **DNS de `academia.conaf.cl`** apuntando al servidor, y `MOODLE_WWWROOT` definitivo.
-3. **Reescribir los 20.994 enlaces** `campus.conaf.cl` → `academia.conaf.cl` una vez el sitio
-   funcione sobre PostgreSQL (paso obligatorio, `docs/MIGRACION.md`).
-4. Certificado `*.conaf.cl`: mientras no exista, `MOODLE_SSLPROXY=false`.
-5. `.github/workflows/deploy-prod.yml` (Guía 6 de `INSUMO/`), **solo cuando el sitio funcione**.
-6. Rotar la contraseña del rol `iam` que quedó expuesta en `INSUMO/setup_bd.sql`.
-7. Correo a Lazzos: ya no bloquea la migración, pero sigue pendiente para el traspaso formal,
-   DNS, certificado y fecha de corte.
-8. Retomar el levantamiento de requisitos (áreas 3 a 8).
+Salida a internet del servidor: **confirmada** (`curl -I https://github.com` → 200), que era el
+bloqueante del build.
+
+### Lecciones que costaron tiempo — están documentadas en `docs/MIGRACION.md`
+
+- `--env-file` **no** reemplaza `env_file:` de un servicio; solo alimenta la interpolación de
+  `${...}`. Las variables de la fase de conversión van en `environment:`.
+- `MOODLE_REVERSEPROXY` debe quedar en **`false`** aunque haya Nginx delante:
+  `lib/setuplib.php:745` aborta si el Host recibido coincide con el de `wwwroot`.
+- El modo mantención por CLI es **solo** `climaintenance.html` en `moodledata`. Si un
+  `--enable` falla después de escribirlo, queda huérfano y el sitio responde "under
+  maintenance" a todo, incluido el healthcheck.
+- El `rsync` del deploy excluye `.env` pero **borra todo lo demás** que no esté en el
+  repositorio: por eso `.env.migracion` vive en `/opt/migracion/coipo_moodle/`.
+- `APP_PORT` es el puerto **interno** por el que Nginx alcanza el contenedor. Nunca 80: choca
+  con Nginx y tumba también las otras apps del servidor.
+- El `AUTO_INCREMENT` de una tabla dice cuántas filas existieron alguna vez, no cuántas
+  quedan. Estimar volumen con él da números inflados.
+
+### Pendientes
+
+1. **Reescribir las URLs fósiles.** Son dos dominios, no uno: `campus.conaf.cl` (20.994) y
+   **`127.0.0.1:8080` (26.816)** — este Moodle corrió antes en un contenedor local. Pero el
+   80 % está en `mdl_logstore_standard_log`, que `tool_replace` salta por diseño y **no hay
+   que tocar**: es traza de auditoría. El contenido real afectado son ~3.300 referencias,
+   casi todas en `mdl_question`. Las 19 de `config_plugins` van a mano, porque esa tabla
+   también está excluida. Procedimiento en `docs/MIGRACION.md`.
+2. Certificado `*.conaf.cl`: mientras no exista, `MOODLE_SSLPROXY=false` y las URLs
+   reescritas apuntan a `http://`.
+3. **Revisar quiénes son administradores del sitio**: `siteadmins` trae `2,7,6,247,248`. El
+   id 2 es `user`/`user@example.com`, la cuenta por defecto de Bitnami. En una plataforma con
+   datos de 2.798 funcionarios deberían quedar solo cuentas nominadas de CONAF.
+4. Borrar la cuenta de prueba que se cree para validar la vista de alumno.
+5. Rotar la contraseña del rol `iam` expuesta en `INSUMO/setup_bd.sql`.
+6. Decidir sobre el correo saliente: `MOODLE_NOEMAILEVER=true` significa que nadie recibe
+   notificaciones ni recuperación de contraseña. Apagarlo requiere SMTP configurado y una
+   decisión explícita.
+7. Definir política de respaldos: no hay ninguna para la base ni para los 10,9 GB.
+8. **No borrar todavía** el volumen `coipo_moodle_mariadb_tmp` ni el volcado: son el rollback.
+9. Correo a Lazzos para el traspaso formal, DNS y fecha de corte.
+10. Retomar el levantamiento de requisitos (áreas 3 a 8).

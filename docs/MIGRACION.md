@@ -450,10 +450,33 @@ Es el comportamiento buscado: `APP_PORT` es el puerto **interno** por el que Ngi
 el contenedor, y la única puerta de entrada es Nginx en el 80. **Nunca poner `APP_PORT=80`**:
 el contenedor chocaría con Nginx y tumbaría también las otras apps del servidor.
 
-Consecuencia práctica: `MOODLE_WWWROOT` **no debe llevar puerto**. Con Nginx delante hay que
-poner `MOODLE_REVERSEPROXY=true`, y cuando el certificado `*.conaf.cl` esté instalado y Nginx
-sirva HTTPS, además `MOODLE_SSLPROXY=true`. Antes no: las cookies seguras no viajan por HTTP
-y el login deja de funcionar sin decir por qué.
+Consecuencia práctica: `MOODLE_WWWROOT` **no debe llevar puerto**.
+
+#### `MOODLE_REVERSEPROXY` debe quedar en `false`, aunque haya Nginx delante
+
+Parece contradictorio, pero está en el código. `lib/setuplib.php:745`:
+
+```php
+if (!empty($CFG->reverseproxy) && $rurl['host'] === $wwwroot['host'] && (empty($wwwroot['port']) || $rurl['port'] === $wwwroot['port'])) {
+    throw new \moodle_exception('reverseproxyabused', 'error');
+}
+```
+
+El modo `reverseproxy` de Moodle asume que el proxy **deja el Host apuntando al nombre interno
+del servidor**, así que espera que el Host recibido sea *distinto* al de `wwwroot`. Nuestro
+Nginx hace `proxy_set_header Host $host` —lo estándar, y lo que Moodle necesita para construir
+bien sus URLs—, o sea reenvía `academia.conaf.cl`, idéntico a `wwwroot`. Con `true`, el sitio
+no carga y muestra *"Proxy inverso habilitado para que no se pueda acceder directamente al
+servidor"*.
+
+No se pierde nada poniéndolo en `false`: Moodle solo comprueba que host, puerto y ruta de la
+petición coincidan con `wwwroot`, y coinciden. La IP real del visitante en los registros la
+resuelve `mod_remoteip` de Apache (`docker/apache-moodle.conf`), no esta variable.
+
+`MOODLE_SSLPROXY` es independiente y **sí** hay que activarlo cuando el certificado
+`*.conaf.cl` esté instalado y Nginx sirva HTTPS —junto con cambiar `wwwroot` a `https://`,
+porque `setuplib.php:727` exige que coincidan—. Antes no: las cookies seguras no viajan por
+HTTP y el login deja de funcionar sin decir por qué.
 
 Para navegar la URL definitiva antes de que el DNS resuelva, sin tocar el archivo `hosts`:
 

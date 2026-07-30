@@ -235,3 +235,7 @@ rsync -avhP --exclude={cache,localcache,sessions,temp,trashdir,cgi-bin,home,mode
 
 Es más simple y más rápido que el bucle de `tar`. El bucle existe porque funciona **hoy**,
 sin instalar nada.
+
+
+Academia2026.
+user

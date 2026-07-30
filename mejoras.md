@@ -1,7 +1,77 @@
 # Mejoras de rendimiento — academia.conaf.cl
 
-**Estado: borrador para discusión. No se ha aplicado nada.**
-Fecha: 29 de julio de 2026 · Autor técnico: Luis Monsalve
+**Estado: fase 0 ejecutada y cerrada el 30 de julio de 2026. Ver el veredicto abajo.**
+Fecha del borrador: 29 de julio de 2026 · Autor técnico: Luis Monsalve
+
+---
+
+## VEREDICTO TRAS MEDIR — 30 de julio de 2026
+
+**El servidor no está lento.** La fase 0 se ejecutó completa contra producción. La página
+más pesada del sitio —el curso 26, 72 actividades y 348 matrículas, 937 KB de HTML— carga
+**entera en 0,30 s**, incluidos sus 18 subrecursos con paralelismo 6 como hace el navegador.
+Un usuario que vuelve paga **0,22 s**.
+
+| Página | Mediana | p90 | Consultas |
+|---|---|---|---|
+| `/login/index.php` | 20,1 ms | 21,4 | 13 |
+| `/my/courses.php` | 63,2 ms | 64,6 | 36 |
+| portada `/` | 96,4 ms | 105,4 | 46 |
+| `/course/view.php?id=25` (112 actividades) | 216,1 ms | 229,1 | 287 |
+| `/course/view.php?id=26` (72 act / 348 matr.) | 219,5 ms | 227,8 | 230 |
+| `/grade/report/grader/index.php?id=26` (348 × 44) | 137,9 ms | 140,8 | 102 |
+| `/grade/report/grader/index.php?id=3` (772 × 8) | 199,7 ms | 205,6 | 91 |
+| `/admin/search.php` | 162,7 ms | 173,5 | 117 |
+
+Protocolo: punto C (host → Nginx), sesión de administrador, `Accept-Encoding: gzip`,
+10 repeticiones, mediana y p90 de `time_total`, una vuelta de calentamiento.
+
+**El libro de calificaciones tarda 138 ms con 102 consultas**, no las 500–3.000 que este
+documento preveía. La aritmética de "la base remota es un multiplicador" **no se sostiene**:
+el RTT real medido desde el contenedor es de **0,112 ms por consulta** (mediana de 200
+`SELECT 1`), así que 150 consultas son 17 ms.
+
+### Los cuatro supuestos: tres confirmados, y el que faltaba
+
+1. `perfdebug = 7` es apagado — **correcto**.
+2. Ya hay compresión — **correcto y medido**: 23.279 → 5.222 bytes. `gzip on` en Nginx no
+   aportaría nada. Además el tiempo **total** es idéntico con y sin gzip (224 vs 227 ms):
+   comprimir solo mueve el tiempo al TTFB porque zlib bufferea.
+3. El autovacuum ya hizo el `ANALYZE` — **correcto**: `last_autoanalyze` con fecha en las 20
+   tablas, `cache_hit` **100,00 %**, base de 651 MB contra `shared_buffers` de 7 GB.
+4. `themedesignermode = 0` — **correcto**.
+
+### Lo que se aplicó y lo que se revirtió
+
+- **A2 `langstringcache = 1`: PROBADO Y REVERTIDO.** No mejora: empeora. `/admin/search.php`
+  pasó de 157,5 a 178,9 ms y volvió a 157,8 al revertir — reproducible, no ruido. La razón:
+  bajo Apache, OPcache tiene los 1.569 archivos `.php` de idioma ya compilados en memoria
+  compartida, así que el `include` es casi gratis; `langstringcache = 1` lo sustituye por un
+  `file_get_contents` + `unserialize` de la MUC en disco, que **no** pasa por OPcache. El
+  cálculo de 35,6 ms que motivaba este ítem se midió en CLI, donde OPcache está apagado: era
+  engañoso.
+- **B2 + B3: APLICADOS** en un solo deploy. No aceleran nada —±3,4 %, ruido— y no se esperaba
+  que lo hicieran; corrigen dos condiciones reales. Ver la tabla de verificación.
+
+### Correcciones a este documento
+
+| Afirmación del borrador | Lo que dice la medición |
+|---|---|
+| `opcache.max_accelerated_files` hay que subirlo a 32531 | **Ya vale eso.** PHP redondea 20000 a `max_cached_keys` = 32.531. Ocupación real 13,77 %, `hash_restarts` 0, `oom_restarts` 0 |
+| `realpath_cache_size` a 8M | **Innecesario**: usa 0,03 MB de los 4 MB actuales. Lo que sí sirve es el TTL |
+| `CONNECTION LIMIT 60` del rol `academia` | **Es 20.** Verificado con `SELECT rolconnlimit FROM pg_roles`. El rol no puede subírselo: hay que pedirlo al administrador de 172.31.2.40 |
+| A4: ~3.300 referencias fósiles de contenido, casi todas en `mdl_question` | **3.283 de ellas son `mdl_question.stamp` y `mdl_question_categories.stamp`**, que no son URLs sino el identificador de deduplicación de preguntas: `campus.conaf.cl+240922154501+0zOvBC`. **Pasarles `tool_replace` sería un error.** Contenido realmente renderizable afectado: ~50 filas, y **cero** en atributos `src` |
+| B4 Redis: ganancia "moderada" | **4,9× con 20 peticiones simultáneas del mismo usuario** (2.165 → 443 ms con sesiones distintas). Pero **irrelevante en navegación normal**: los subrecursos que pide el navegador (`theme/image.php`, `lib/ajax/service.php`) no retienen el bloqueo — 16 ms con 6 en paralelo |
+| A3: `enrol_*` / `auth_*` apuntando a directorios reales | **No hay ninguno.** `auth = email`; las tareas de `auth_ldap`, `auth_cas`, `auth_db`, `enrol_database` y `enrol_ldap` están **deshabilitadas**; `backup_auto_active = 0`; `faildelay = 0` en todas |
+| A5 `debug = 0`: "el volumen puede ser alto" | **Cero avisos PHP y cero líneas `Debugging:`** en 2.723 líneas de log. No cuesta nada medible |
+| 0.5: las URLs fósiles cuelgan el navegador | **No.** `campus.conaf.cl` responde 200 en 32 ms y Google Fonts en 120 ms. Y el HTML servido no referencia ninguno de los dos |
+
+### Un dato curioso, sin acción posible
+
+El HTML del curso 25 pesa 1.030.199 bytes con solo 3.482 nodos DOM. **726.853 de esos bytes
+—el 70,6 %— son espacios, tabuladores y saltos de línea** de las plantillas Mustache. Con
+gzip queda en 50 KB y el tiempo total no cambia, así que es llamativo pero no accionable:
+Moodle no ofrece minificar su propio HTML.
 
 ---
 
@@ -607,19 +677,35 @@ Protocolo, idéntico antes y después de cada cambio:
    p90 mejora ≥ 20 %. Si no, se revierte. Sin umbral fijado de antemano, cualquier ruido se
    interpreta como éxito.
 
-| # | Cambio | Ámbito | Mediana `/my/` antes → después | Consultas antes → después | Veredicto | Cómo se revierte |
-|---|---|---|---|---|---|---|
-| A1 | `ANALYZE` | PostgreSQL | | | | no aplica |
-| A2 | `langstringcache=1` | Moodle | | | | `--set=0` + purge |
-| A3 | cron / auth / respaldos | Moodle | | | | reactivar cada plugin |
-| A4 | URLs fósiles | contenido | | | | restaurar el respaldo previo |
-| A5 | `debug=0` | Moodle | | | | `--set=15` |
-| A6 | pre-compilar CSS | procedimiento | | | | no aplica |
-| A7 | apagar `mariadb-tmp` | host | | | | `docker start` |
-| B1 | Nginx | host | | | | restaurar vhost + reload |
-| B2 | `php.ini` | imagen | | | | revertir commit + deploy |
-| B3 | `MaxRequestWorkers` | imagen | | | | revertir commit + deploy |
-| B4 | Redis sesiones | imagen + compose | | | | quitar `MOODLE_REDIS_HOST` y recrear |
+### Resultados reales — 30 de julio de 2026
+
+Referencia base R0 tomada a las 13:01. Todas las medianas en ms, protocolo idéntico.
+
+| # | Cambio | Estado | Evidencia | Cómo se revierte |
+|---|---|---|---|---|
+| A1 | `ANALYZE` | **NO HACER** | `last_autoanalyze` con fecha en las 20 tablas, `cache_hit` 100,00 %, 1.859 lecturas de disco en toda la vida de la base | no aplica |
+| A2 | `langstringcache=1` | **PROBADO Y REVERTIDO** | `/admin/search.php` 157,5 → **178,9** → 157,8 al revertir. Curso 26: 216,7 → 217,7. Ninguna página alcanzó el umbral | ya revertido (`--set=0` + purge) |
+| A3 | cron / auth / respaldos | **NADA QUE HACER** | `auth=email`; `auth_ldap`/`auth_cas`/`auth_db`/`enrol_database`/`enrol_ldap` deshabilitadas; `backup_auto_active=0`; `faildelay=0` | no aplica |
+| A4 | URLs fósiles | **NO CON `tool_replace`** | 3.283 de 3.378 son `stamp`, que no son URLs. Quedan 5 enlaces del tema activo y 3 de `user_info_field`, a mano | no aplica |
+| A5 | `debug=0` | **irrelevante** | 0 avisos PHP en 2.723 líneas de log. Correcto por higiene, no acelera | `--set=15` |
+| A6 | pre-compilar CSS | **procedimiento adoptado** | `build_theme_css.php` tarda **4,1 s**, no decenas. Se ejecuta tras cada purga y cada deploy | no aplica |
+| A7 | apagar `mariadb-tmp` | **innecesario** | 1,26 GB usados con 7,9 GB libres y swap en 1,3 MB. Higiene, no victoria | `docker start` |
+| B1 | Nginx | **NADA QUE HACER** | gzip ya existe (23.279 → 5.222 B); estáticos ya llevan `max-age=7776000, immutable`; Nginx no agrega latencia (B 20,1 vs C 18,4 ms) | — |
+| B2 | `php.ini` | **APLICADO** · no acelera | `interned_strings_buffer` 16 → 32: estaba AGOTADO (16,0/16,0 MB, libre 0,0). Ahora **12,9 MB libres**. `realpath_cache_ttl` 120 → 600: entradas vivas 231 → **549**. Latencia sin cambio (±3,4 %) | revertir commit + deploy |
+| B3 | `MaxRequestWorkers` | **APLICADO** · protege | 150 → 16. **Verificado con 40 peticiones simultáneas: las 40 devolvieron 200.** Antes, las que pasaran de 20 habrían recibido `FATAL: too many connections` | revertir commit + deploy |
+| B4 | Redis sesiones | **no ahora** | 4,9× solo con 20 peticiones paralelas del mismo usuario. En navegación real los subrecursos no retienen el bloqueo | — |
+| B5 | Redis MUC | **no** | Un solo nodo, `cache_hit` 100 %, base de 651 MB | — |
+| B6 | php-fpm | **diferir** | `BusyWorkers` máximo observado: **1** | — |
+| B7 | `dbpersist` | **NO HACER** | Ahorraría 7,24 ms de conexión por página sobre 220. Y con `CONNECTION LIMIT 20` tumbaría el sitio | — |
+
+**Efecto medido del bloqueo de sesión de archivo** (20 peticiones simultáneas al curso 26):
+
+| Escenario | Mediana | p90 |
+|---|---|---|
+| Misma sesión (bloqueo `flock`) | 2.165 ms | 3.845 |
+| 20 sesiones distintas | 443 ms | 615 |
+| Sin sesión (`/login`) | 39 ms | 47 |
+| Una sola, secuencial | 226 ms | — |
 
 Y después de **cada** deploy, las verificaciones funcionales del `CLAUDE.md`, que no son
 negociables aunque el cambio sea "solo de rendimiento": 200 en el login, `/health` en `ok`,

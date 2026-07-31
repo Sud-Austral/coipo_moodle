@@ -82,6 +82,23 @@ COPY --chown=www-data:www-data plugins/admin/tool/mergeusers/       /var/www/htm
 COPY --chown=www-data:www-data plugins/blocks/configurable_reports/ /var/www/html/blocks/configurable_reports/
 COPY --chown=www-data:www-data plugins/theme/boost_magnific/        /var/www/html/theme/boost_magnific/
 
+# theme_academi — recuperado el 31-07-2026. No es un tema nuevo: la base ya traía
+# 134 ajustes suyos con datos reales de CONAF (dirección de Paseo Bulnes, correo
+# campus.geprif@conaf.cl, aviso de copyright), pero sus archivos nunca se
+# vendorizaron y por eso Moodle lo daba por "ausente del disco".
+#
+#   en la base    2024060503
+#   vendorizado   2025050300  release v4.5.1  requires 2024042200  MATURITY_STABLE
+#
+# Descargado del directorio oficial de Moodle y verificado contra el MD5 que
+# publica la API: 555e3d351fe1252c09983c1203e5c0b7. Origen github.com/lmsace/academi.
+#
+# NO instalar este tipo de plugin por la interfaz web: los archivos quedarían solo
+# dentro del contenedor y el siguiente despliegue reconstruye la imagen desde este
+# Dockerfile, así que desaparecerían y el sitio quedaría otra vez con ajustes
+# huérfanos en la base. Todo plugin va vendorizado en plugins/ y copiado acá.
+COPY --chown=www-data:www-data plugins/theme/academi/                /var/www/html/theme/academi/
+
 COPY docker/config.php         /var/www/html/config.php
 COPY docker/health.php         /var/www/html/health.php
 COPY docker/php.ini            /usr/local/etc/php/conf.d/zzz-moodle.ini

@@ -77,10 +77,22 @@ $CFG->directorypermissions = 02775;
 $CFG->filepermissions      = 0664;
 $CFG->slasharguments       = true;
 
-// ─── Nginx del servidor ─────────────────────────────────────────────────────
-// El servidor CONAF sirve HTTP plano por ahora: sslproxy DEBE quedar en false.
-// Con sslproxy=true sobre HTTP, Moodle marca las cookies como Secure, el
-// navegador no las envía y el login deja de funcionar sin decir por qué.
+// ─── TLS y proxys ───────────────────────────────────────────────────────────
+// Desde el 30-07-2026 hay certificado. El TLS NO lo termina el Nginx de este
+// servidor sino un balanceador Radware Alteon en 172.31.2.100, que es a donde
+// apunta el DNS de academia.conaf.cl (se reconoce por la cookie AlteonP). El
+// Alteon reenvía en HTTP plano al Nginx de 172.31.2.41:80, y además redirige
+// http:// a https:// con un 307, así que los marcadores antiguos siguen sirviendo.
+//
+// sslproxy = true es OBLIGATORIO en ese esquema: Moodle recibe HTTP y, sin esta
+// variable, generaría todas las URLs de recursos con http:// dentro de una
+// página servida por https://. El navegador las bloquea por contenido mixto y el
+// sitio aparece SIN CSS ni JS, sin ningún error visible. Va siempre junto con
+// MOODLE_WWWROOT=https://... : las dos o ninguna.
+//
+// reverseproxy se queda en false aunque haya dos proxys delante. No es un
+// descuido: lib/setuplib.php:745 lanza "reverseproxyabused" cuando el Host que
+// llega coincide con el de wwwroot, que es exactamente lo que pasa acá.
 $CFG->reverseproxy = conaf_env_bool('MOODLE_REVERSEPROXY', false);
 $CFG->sslproxy     = conaf_env_bool('MOODLE_SSLPROXY', false);
 

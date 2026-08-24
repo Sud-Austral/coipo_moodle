@@ -7,6 +7,14 @@ Fecha del borrador: 29 de julio de 2026 · Autor técnico: Luis Monsalve
 
 ## VEREDICTO TRAS MEDIR — 30 de julio de 2026
 
+> **Nota sobre los datos.** Todas las mediciones de abajo se tomaron **antes** de rehacer la
+> migración con `moodle_db.sql` esa misma tarde. Es el mismo sitio con ~3 % más de contenido
+> (37 cursos en vez de 36, 179.147 archivos en vez de 159.768), así que las conclusiones se
+> mantienen, pero **los números absolutos habría que volver a tomarlos** con el protocolo de
+> la sección Verificación si se quiere una referencia exacta del estado actual. Lo único
+> re-medido después de la migración es el login: **21,6 ms de mediana**, contra los 20,1 ms
+> de antes.
+
 **El servidor no está lento.** La fase 0 se ejecutó completa contra producción. La página
 más pesada del sitio —el curso 26, 72 actividades y 348 matrículas, 937 KB de HTML— carga
 **entera en 0,30 s**, incluidos sus 18 subrecursos con paralelismo 6 como hace el navegador.

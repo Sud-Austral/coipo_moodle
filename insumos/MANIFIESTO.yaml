@@ -1,0 +1,219 @@
+# Manifiesto derivado del codigo. Los archivos ya estaban abiertos cuando se
+# escribio: esto documenta lo que hay y deja constancia de lo que falta
+# declarar. El conteo de patrones de dato personal no se pudo hacer porque la
+# evidencia extraida no incluye el contenido de los archivos.
+#
+# Se listan los 27 archivos propios relevantes. Los 1.320 archivos bajo
+# plugins/ son codigo de terceros que el repositorio arrastra; se registran
+# al final como bloque, con sus manifiestos nombrados uno a uno.
+
+archivos:
+
+  - ruta: docker-compose.yml
+    sha256: "6500fd536810c39d6c49e301ed3597ddb818440e48d7d1af01a750007e052802"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Manifiesto de orquestacion del servicio en operacion; es la unica tecnologia que el analizador da por declarada en todo el repositorio [docker-compose.yml:1]"
+
+  - ruta: docker-compose.migracion.yml
+    sha256: "7dba13db8b21ee4cdd3494a391e6742a91ffe77479bdba651364d37a8c3043c8"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Segundo montaje, separado del de operacion, dedicado al traslado de la instalacion"
+
+  - ruta: Dockerfile
+    sha256: "b9817793324c28a5c1cc88687907989c8956806f7e18ecd62c6fc1e6a021bf73"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Construccion de la imagen de la aplicacion; declara una sola dependencia, la imagen base [Dockerfile:10]"
+
+  - ruta: .env.example
+    sha256: "3be11a359a5aeed012d1cf2969db6dbc39a7bd8f0657b790891df154c9346d68"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] es un archivo de ejemplo, lo que aumenta la probabilidad de que sus valores sean marcadores de relleno, pero la evidencia no lo confirma; conteo no disponible. Es el archivo propio donde con mas probabilidad aparecerian credenciales si alguien pegara valores reales"
+    puede_versionarse: true
+    uso: "Plantilla de las variables de entorno de operacion. Notese que la extraccion automatica de variables devolvio cero resultados en todo el repositorio pese a existir este archivo: el analizador no lo leyo"
+
+  - ruta: .env.migracion.example
+    sha256: "333a1952d4e4cb116cc34fab1fbb5bf469153634a0a9a2aaebf7eaa9bba1e661"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] es un archivo de ejemplo; la evidencia no reporta patrones ni conteo. Por su funcion podria contener referencias al origen del traslado"
+    puede_versionarse: true
+    uso: "Plantilla de las variables de entorno del traslado"
+
+  - ruta: db/setup_bd.sql
+    sha256: "e405d74883f3faebe402b5b804de39a729b4150d62ef53d9091d78d22d2a0570"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia solo extrajo un token de este archivo [db/setup_bd.sql:35] y ningun nombre de tabla; conteo no disponible"
+    puede_versionarse: true
+    uso: "Prepara el almacenamiento antes del primer arranque"
+
+  - ruta: docker/config.php
+    sha256: "a01e939321ba5291d2412ddfed247fd357d769b8a3e5144a6d777bd1bc74f651"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible. Por su funcion es un archivo de configuracion de aplicacion y podria contener cadenas de conexion"
+    puede_versionarse: true
+    uso: "Configuracion de la aplicacion dentro del contenedor"
+
+  - ruta: docker/health.php
+    sha256: "6cbf9701c098c31b0a395422422269f4670a99d71c46c5060d360907c2006087"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Responde la comprobacion de estado del servicio"
+
+  - ruta: docker/apache-moodle.conf
+    sha256: "90b4b5a27773f304977275f83b3976a3d6f8be5c4a02631cd751433eb73c94fb"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Configuracion del servidor web interno del contenedor"
+
+  - ruta: docker/php.ini
+    sha256: "d6b08b54f8e08fd9329199318bcb623d090595f7baf0f019813b7438076228ec"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Configuracion del interprete dentro del contenedor"
+
+  - ruta: docker/moodle-crontab
+    sha256: "29f307034510799b821ce47c6143c826ecca79690d2e4a186f5fc59fa44dac29"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Declara los trabajos que se ejecutan de forma periodica"
+
+  - ruta: docs/nginx-academia.conf
+    sha256: "b83d55ee61a1bdf8824792d905baa858c3e389365eea0238aa3860bc7f7c596d"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible. Por su funcion podria contener nombres de dominio y rutas internas"
+    puede_versionarse: true
+    uso: "Configuracion de un servidor por delante del contenedor, guardada bajo documentacion y no bajo el montaje"
+
+  - ruta: .github/workflows/deploy-prod.yml
+    sha256: "f0497b504926e78c0604d45b8bf355d71cd487b03306542c8617d9c05311018b"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Unico flujo de integracion continua propio; publica a produccion"
+
+  - ruta: .dockerignore
+    sha256: "743e2f292892778e3e2cc89939bb67d3983e4f03b93f9b2cc72e185b6c0a0149"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Declara que queda fuera del contexto de construccion de la imagen"
+
+  - ruta: .gitignore
+    sha256: "6fd24096a69f5099910db703971f851969ff60c020aae8d31dac6ba6db75f679"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Declara que se excluye del control de versiones; es donde tendria que estar anclado cualquier archivo que resulte contener dato personal"
+
+  - ruta: .gitattributes
+    sha256: "d8fb0de4792538f93822b2c0d235604921299d5e54a3d6ec7a6cb34536e8bf1e"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Normaliza el tratamiento de los archivos por parte del control de versiones"
+
+  - ruta: docs/MIGRACION.md
+    sha256: "6774af6da1c026dcf44854fbc389715c4519bc01aa58a525ba48e961d73a477a"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] documento operativo extenso; la evidencia no incluye su contenido, de modo que no se puede descartar que transcriba credenciales, nombres de servidor o nombres de personas. Conteo no disponible"
+    puede_versionarse: true
+    uso: "Procedimiento escrito de migracion"
+
+  - ruta: docs/TRASLADO.md
+    sha256: "36c9b963aec36d0922acf13371a78ba3f57f777d603808c3ccac092fb7fda0ae"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] documento operativo; la evidencia no incluye su contenido. Conteo no disponible"
+    puede_versionarse: true
+    uso: "Procedimiento escrito de traslado de la instalacion"
+
+  - ruta: docs/entrevista-avance.md
+    sha256: "99164404d5d515617c9fba721c7db5e82f775e1f39434968f565a41eeb538cab"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] es el archivo del repositorio con mayor probabilidad de contener nombres de personas, por su formato declarado de entrevista. La evidencia no incluye su contenido y no se pudo hacer el conteo. Debe revisarse antes de cualquier publicacion"
+    puede_versionarse: true
+    uso: "Registro de una conversacion de avance del proyecto"
+
+  - ruta: mejoras.md
+    sha256: "88e031f900bf1e10da5eb677ae740d8dce7d0aa331621be99e4da5eff5c0c5e4"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] documento extenso cuyo contenido no esta en la evidencia; podria nombrar personas o areas. Conteo no disponible"
+    puede_versionarse: true
+    uso: "Lista propia de mejoras pendientes"
+
+  - ruta: mejoras.pdf
+    sha256: "b51671bdc03ed4f7b2793a1de0393fc5bc3a4f3e20e9e5caad2b480d7edb99bc"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] version en formato portable del documento anterior; su contenido no es legible desde la evidencia y no se pudo hacer el conteo"
+    puede_versionarse: true
+    uso: "Copia distribuible de la lista de mejoras; su existencia indica que el documento se comparte fuera del equipo tecnico"
+
+  - ruta: CLAUDE.md
+    sha256: "e87a2d8f55546b794f96f3388a536d867990bb9856ea9deb32ef3d9c22da0b1a"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no incluye su contenido; conteo no disponible"
+    puede_versionarse: true
+    uso: "Instrucciones para asistente de codigo sobre este repositorio"
+
+  - ruta: README.md
+    sha256: "d23a73f3ad7180d340ab0bc675c37c38a0d025e32a3b525634f7ea2fa260d8f5"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Ocupa 36 bytes y no describe el sistema; no sirve hoy como documentacion"
+
+  - ruta: INSUMO/DOCKER.md
+    sha256: "6a695c0de32579641acbf5570853d94cf3c0d5ae973bc8fed440d8a0fd73a0ee"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Documentacion de practicas generales de la flota, copiada a este repositorio; no describe este sistema"
+
+  - ruta: INSUMO/guia-6-github-actions-por-repo.md
+    sha256: "bcea62638a7a2844da91290e448e4ddc0c75fde857526e65888b0d6e3e7e007c"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Documentacion de practicas generales de la flota, copiada a este repositorio"
+
+  - ruta: INSUMO/guia-8-prompt-checklist-pre-deploy.md
+    sha256: "1ab4abbe11df8991c4be5bd9e6a41e5ca07e6f040a645d9d3ed839394fa2537a"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Documentacion de practicas generales de la flota, copiada a este repositorio"
+
+  - ruta: INSUMO/fastapi-postgresql-conexion.md
+    sha256: "9366fc1bc06fd6fd01e4570c1b25a66fa58bc1af99956364db88d230d5aac0d3"
+    origen: "[PENDIENTE] quien lo entrego y cuando"
+    contiene_pii: "[VERIFICAR] la evidencia no reporta patrones de dato personal en este archivo; conteo no disponible"
+    puede_versionarse: true
+    uso: "Documentacion de practicas generales de la flota, copiada a este repositorio. Los nombres de tecnologia que aparecen en el titulo de este archivo estan clasificados por el analizador como simples menciones y no son evidencia de que este proyecto las use"
+
+terceros:
+  descripcion: "1.320 de los 1.347 archivos del repositorio son codigo de terceros arrastrado bajo plugins/. No son lo que este proyecto hace y no se sellan uno a uno. Se nombran sus manifiestos y sus archivos de version, que son los que permiten identificar que se arrastro y en que version."
+  manifiestos:
+    - plugins/admin/tool/mergeusers/composer.json
+    - plugins/admin/tool/mergeusers/Makefile
+    - plugins/blocks/configurable_reports/composer.json
+    - plugins/blocks/configurable_reports/lib/pChart2/composer.json
+    - plugins/mod/customcert/composer.json
+  archivos_de_version:
+    - plugins/admin/tool/mergeusers/version.php
+    - plugins/blocks/configurable_reports/version.php
+    - plugins/mod/customcert/version.php
+    - plugins/theme/academi/version.php
+    - plugins/theme/boost_magnific/version.php
+
+notas:
+  - "El repositorio es publico segun la evidencia de origen. Los tres documentos propios cuyo contenido no entro en la evidencia y que mas riesgo tienen son [docs/entrevista-avance.md], [docs/MIGRACION.md] y [docs/TRASLADO.md]: hay que leerlos antes de dar por cerrado este manifiesto."
+  - "Ningun archivo se marco con contiene_pii confirmado, porque la evidencia no permite confirmarlo en ningun caso. Si alguno se confirma, puede_versionarse pasa a false y la ruta tiene que quedar excluida del control de versiones anclada con barra inicial en [.gitignore]. Comprobarlo corresponde al informe; editar ese archivo no corresponde aqui."
+  - "La extraccion automatica de variables de entorno devolvio cero resultados en todo el repositorio. No significa que no haya variables: significa que el analizador no las vio. Es la mayor ceguera de este analisis."

@@ -139,3 +139,12 @@ entro en la evidencia: el procedimiento de migracion [docs/MIGRACION.md], el
 de traslado [docs/TRASLADO.md] y la lista de mejoras [mejoras.md]. Es muy
 probable que ahi este casi todo lo que este documento deja en [PENDIENTE].
 Leerlos es el paso siguiente y cuesta poco.
+
+## Actualización 2026-10-24 (leída en el historial y los archivos; no ejecuté nada)
+
+Cambios posteriores a este documento: el cron pasó a una pasada por minuto (`--keep-alive=0`) y a registrar sin
+envoltorio (`supercronic -quiet -passthrough-logs`), con rotación de logs de Docker (20 MB x 5) en `app` y `cron`
+(commits del 2026-09-16); y desde el 2026-09-22 existe un bucket `moodle` asignado en `coipo_archivo` (MinIO/S3), con las
+variables `MINIO_*` comentadas en `.env.example` porque aún no se usa. `CLAUDE.md` (el inventario verificado de la
+migración, las decisiones, la arquitectura y los pendientes) sí está documentado: ahí está el contenido que arriba figura como
+`[PENDIENTE]`. El estado real de las mejoras de `mejoras.md` sigue `[PENDIENTE]`.

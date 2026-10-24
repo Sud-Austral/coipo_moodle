@@ -331,3 +331,16 @@ bloqueante del build.
 8. **No borrar todavía** el volumen `coipo_moodle_mariadb_tmp` ni el volcado: son el rollback.
 9. Correo a Lazzos para el traspaso formal, DNS y fecha de corte.
 10. Retomar el levantamiento de requisitos (áreas 3 a 8).
+
+## Cambios posteriores al 2026-08-24 (agregado 2026-10-24, leído en `git log` y en los archivos)
+
+- **Cron**: `docker/moodle-crontab` corre `admin/cli/cron.php --keep-alive=0` (una pasada por minuto); el compose lanza
+  `supercronic -quiet -passthrough-logs`. Motivo: el log de Docker (4,4 GB en 16 días, medido el 2026-09-16 según el
+  comentario del commit). Costo aceptado por Luis Monsalve el 2026-09-16: una tarea adhoc puede tardar hasta 60 s en ejecutarse.
+- **Rotación de logs**: `app` y `cron` declaran `json-file` con `max-size: 20m` y `max-file: 5` en `docker-compose.yml`.
+- **Almacén de archivos**: desde el 2026-09-22 hay un bucket `moodle` asignado en `coipo_archivo` (MinIO, API S3). Las variables
+  `MINIO_*` en `.env.example` están **comentadas: no se usa**, y no se comprobó contra esta instalación. Moodle resolvería el
+  object storage con un plugin, no con código propio.
+- **README.md**: tiene un bloque generado por `Sud-Austral/coipo_aireadme` (workflow `readme.yml`, se dispara en cada push a
+  `main`); lo escrito a mano está fuera de las marcas `AI:BEGIN`/`AI:END`. `insumos/` también lo regenera ese generador.
+- **Imagen**: `php:8.3-apache` (el Dockerfile explica que 8.4 no es válido para Moodle 4.5).

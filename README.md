@@ -1,3 +1,35 @@
+# coipo_moodle
+
+Moodle 4.5.10 de CONAF (sitio `academia.conaf.cl`) migrado desde el hosting externo de Lazzos a infraestructura propia:
+imagen Docker `php:8.3-apache`, base PostgreSQL 17 compartida (fuera de Docker) y `moodledata` por bind mount. El detalle
+de la migración, el inventario verificado y los pendientes están en [`CLAUDE.md`](CLAUDE.md).
+
+## En breve (VERIFICADO leyendo el repo; no ejecuté el despliegue)
+
+- Dos servicios en `docker-compose.yml`: `app` (Apache + PHP, único con puerto, `APP_PORT`) y `cron` (supercronic ejecutando
+  `admin/cli/cron.php --keep-alive=0` cada minuto, `docker/moodle-crontab`).
+- Toda la configuración entra por variables de entorno (`docker/config.php`); `.env.example` es la lista de referencia
+  (el `.env` real vive sólo en el servidor, `/opt/apps/coipo_moodle/`, y nunca se commitea). Hay un `docker-compose.migracion.yml`
+  con su `.env.migracion.example` para la fase de conversión desde MariaDB.
+- Los plugins no-core están vendorizados en `plugins/` y se copian en el `Dockerfile` (`mod_customcert`, `tool_mergeusers`,
+  `block_configurable_reports`, `theme_boost_magnific`, `theme_academi`). No se instalan por la interfaz web: se perderían en el
+  siguiente despliegue.
+- Despliegue: push a `main` ejecuta `.github/workflows/deploy-prod.yml` (reusable de `infra-docker-base`).
+- Salud: `docker/health.php`. Sin pruebas propias del proyecto; `plugins/*/tests` son de los plugins de terceros.
+- Datos personales de unos 2.800 funcionarios: nada de volcados, `.env` ni credenciales en el repositorio.
+
+## Documentación
+
+| | |
+|---|---|
+| [`CLAUDE.md`](CLAUDE.md) | guía para agentes, inventario, decisiones, arquitectura, pendientes |
+| [`docs/TRASLADO.md`](docs/TRASLADO.md), [`docs/MIGRACION.md`](docs/MIGRACION.md), [`docs/TLS-HTTPS.md`](docs/TLS-HTTPS.md) | traslado, migración por fases, HTTPS |
+| [`insumos/00-PROBLEMA.md`](insumos/00-PROBLEMA.md), [`insumos/01-SOLUCION.md`](insumos/01-SOLUCION.md) | problema y solución (generados) |
+
+---
+
+El bloque siguiente lo regenera automáticamente el workflow `readme.yml`; es genérico y no sustituye lo de arriba.
+
 <!-- AI:BEGIN id=readme sha=0a37faad0483 -->
 # coipo_moodle
 

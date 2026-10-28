@@ -7,5 +7,12 @@
 #
 # El propio cron.php toma un bloqueo, así que dos ejecuciones superpuestas no
 # se pisan.
+#
+# --keep-alive=0: una sola pasada por minuto. Por defecto Moodle 4.5 mantiene vivo
+# cron.php 3 minutos (core\cron::DEFAULT_MAIN_PROCESS_KEEPALIVE) y vuelve a revisar
+# cada 1 segundo, escribiendo tres líneas por vuelta aunque no haya nada que hacer:
+# era el 57 % del log (medido 2026-09-16). Costo aceptado por Luis Monsalve el
+# 2026-09-16: una tarea adhoc (restaurar un curso, una notificación) se toma hasta
+# 60 s después de encolarse, en vez de ~1 s.
 
-* * * * * php /var/www/html/admin/cli/cron.php
+* * * * * php /var/www/html/admin/cli/cron.php --keep-alive=0

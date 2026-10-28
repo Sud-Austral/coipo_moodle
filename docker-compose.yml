@@ -32,6 +32,15 @@ services:
       timeout: 10s
       retries: 5
       start_period: 120s
+    # Rotación del log de Docker. vm2 tiene max-size 20m / max-file 5 en daemon.json desde el
+    # 2026-09-05, pero dockerd corre desde el 2026-07-22 sin reiniciar: esa configuración NO está
+    # activa y ningún contenedor del servidor rota (medido 2026-09-16: 0 archivos rotados). Se
+    # declara aquí con los mismos valores para no depender de un reinicio de dockerd.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     restart: unless-stopped
 
   cron:
@@ -49,10 +58,22 @@ services:
       - localcache_cron:/var/localcache
     # Sin puerto: no es un servicio web. El horario viaja dentro de la imagen
     # (docker/moodle-crontab), no depende del cron de la máquina.
-    command: ["supercronic", "/etc/moodle-crontab"]
+    #
+    # -passthrough-logs: la salida de cron.php va tal cual. Sin él, supercronic envuelve cada
+    #   línea con time/level/channel/iteration/job.command/job.position/job.schedule, que era el
+    #   54 % de los bytes del log (4,4 GB en 16 días, medido 2026-09-16).
+    # -quiet: quita los mensajes informativos de supercronic ("starting" en cada ejecución).
+    #   Los errores se siguen registrando: probado con supercronic v0.2.48 de esta imagen, un job
+    #   que sale con código 3 deja level=error msg="error running command: exit status 3".
+    command: ["supercronic", "-quiet", "-passthrough-logs", "/etc/moodle-crontab"]
     depends_on:
       app:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     restart: unless-stopped
 
 volumes:
